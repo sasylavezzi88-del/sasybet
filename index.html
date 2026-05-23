@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SasyBet Pro - Storico Live</title>
+    <title>SasyBet Pro - Live 2026</title>
     <style>
         :root {
             --bg-principal: #0f172a;
@@ -185,14 +185,11 @@
     
     <!-- Selezione Campionato -->
     <div class="form-group">
-        <label for="league">Campionato</label>
+        <label for="league">Campionato Attivo (Stagione 2026)</label>
         <select id="league" onchange="loadTeams()">
-            <option value="">-- Seleziona Competizione --</option>
-            <option value="135">Serie A (Italia)</option>
-            <option value="39">Premier League (Inghilterra)</option>
-            <option value="140">La Liga (Spagna)</option>
-            <option value="78">Bundesliga (Germania)</option>
-            <option value="61">Ligue 1 (Francia)</option>
+            <option value="">-- Seleziona Competizione In Corso --</option>
+            <option value="253">Major League Soccer (USA)</option>
+            <option value="71">Serie A (Brasile)</option>
         </select>
     </div>
 
@@ -211,9 +208,9 @@
         </select>
     </div>
 
-    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici su Storico</button>
+    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici Real-Time</button>
     
-    <div id="loading" class="loading">Analisi approfondita dello storico in corso...</div>
+    <div id="loading" class="loading">Sincronizzazione dati live e calcolo metriche in corso...</div>
 
     <!-- Schermata Risultati -->
     <div id="resultsContainer" class="results-container">
@@ -264,12 +261,13 @@
 
 <script>
     const BASE_URL = "https://v3.football.api-sports.io";
-    const CURRENT_SEASON = "2025"; 
+    const CURRENT_SEASON = "2026"; // Impostata sul 2026 per i campionati estivi attivi ora
     let teamsData = [];
 
     function getHeaders() {
         // INSERISCI LA TUA CHIAVE DENTRO LE VIRGOLETTE QUI SOTTO
         const userKey = "71383cdcdaed2261cd564c7fb2906356"; 
+        
         return {
             "x-rapidapi-key": userKey,
             "x-apisports-key": userKey,
@@ -299,7 +297,7 @@
             const data = await response.json();
             
             if (data.errors && Object.keys(data.errors).length > 0) {
-                alert("Errore API: " + JSON.stringify(data.errors) + ". Controlla la tua chiave!");
+                alert("Errore API: " + JSON.stringify(data.errors));
                 return;
             }
             
@@ -315,7 +313,7 @@
                 awaySelect.disabled = false;
                 predictBtn.disabled = false;
             } else {
-                alert("Nessun dato ricevuto. Verifica di aver inserito correttamente la tua API Key.");
+                alert("Nessun dato ricevuto per la stagione 2026 di questo campionato.");
             }
         } catch (error) {
             console.error(error);
@@ -344,56 +342,6 @@
         document.getElementById('resultsContainer').style.display = 'none';
     }
 
-    async function getTeamPerformance(leagueId, teamId, isHome) {
-        try {
-            const res = await fetch(`${BASE_URL}/fixtures?league=${leagueId}&season=${CURRENT_SEASON}&team=${teamId}&last=10`, { 
-                method: 'GET',
-                headers: getHeaders() 
-            }).then(r => r.json());
-            
-            let wins = 0, draws = 0, loses = 0, goalsFor = 0, goalsAgainst = 0;
-            const matches = res.response || [];
-            
-            if(matches.length === 0) return null;
-
-            matches.forEach(m => {
-                const f = m.goals;
-                const teams = m.teams;
-                const currentIsHome = (teams.home.id == teamId);
-                const scored = currentIsHome ? f.home : f.away;
-                const conceded = currentIsHome ? f.away : f.home;
-                
-                goalsFor += (scored || 0);
-                goalsAgainst += (conceded || 0);
-
-                if(scored > conceded) {
-                    if(currentIsHome && isHome) wins++;
-                    else if(!currentIsHome && !isHome) wins++;
-                    else loses++;
-                } else if(scored < conceded) {
-                    if(currentIsHome && isHome) loses++;
-                    else if(!currentIsHome && !isHome) loses++;
-                    else wins++;
-                } else {
-                    draws++;
-                }
-            });
-
-            const total = matches.length;
-            return {
-                winRate: wins / total,
-                drawRate: draws / total,
-                loseRate: loses / total,
-                avgScored: goalsFor / total,
-                avgConceded: goalsAgainst / total,
-                name: isHome ? matches[0].teams.home.name : matches[0].teams.away.name
-            };
-        } catch(e) {
-            console.error(e);
-            return null;
-        }
-    }
-
     async function generatePrediction() {
         const leagueId = document.getElementById('league').value;
         const homeId = document.getElementById('homeTeam').value;
@@ -412,43 +360,58 @@
         document.getElementById('resultsContainer').style.display = 'none';
 
         try {
-            const [hPerf, aPerf] = await Promise.all([
-                getTeamPerformance(leagueId, homeId, true),
-                getTeamPerformance(leagueId, awayId, false)
+            const [homeRes, awayRes] = await Promise.all([
+                fetch(`${BASE_URL}/teams/statistics?league=${leagueId}&season=${CURRENT_SEASON}&team=${homeId}`, { headers: getHeaders() }).then(r => r.json()),
+                fetch(`${BASE_URL}/teams/statistics?league=${leagueId}&season=${CURRENT_SEASON}&team=${awayId}`, { headers: getHeaders() }).then(r => r.json())
             ]);
 
-            if (hPerf && aPerf) {
-                document.getElementById('lblHome').textContent = hPerf.name;
-                document.getElementById('lblAway').textContent = aPerf.name;
+            const hStats = homeRes.response;
+            const aStats = awayRes.response;
+
+            if (hStats && aStats) {
+                document.getElementById('lblHome').textContent = hStats.team.name;
+                document.getElementById('lblAway').textContent = aStats.team.name;
+
+                const homePlayed = hStats.fixtures.played.home || 1;
+                const awayPlayed = aStats.fixtures.played.away || 1;
+
+                const homeWinRate = (hStats.fixtures.wins.home / homePlayed);
+                const awayLoseRate = (aStats.fixtures.loses.away / awayPlayed);
+                const awayWinRate = (aStats.fixtures.wins.away / awayPlayed);
+
+                const avgHomeScored = parseFloat(hStats.goals.for.average.home) || 0;
+                const avgHomeConceded = parseFloat(hStats.goals.against.average.home) || 0;
+                const avgAwayScored = parseFloat(aStats.goals.for.average.away) || 0;
+                const avgAwayConceded = parseFloat(aStats.goals.against.average.away) || 0;
 
                 let segno = "X";
                 let doppiaChance = "1X";
-                const indiceAttacco = hPerf.winRate + (1 - aPerf.loseRate);
+                const attaccoCasa = homeWinRate + (1 - awayLoseRate);
 
-                if (indiceAttacco > 1.2) {
+                if (attaccoCasa > 1.25) {
                     segno = "1";
                     doppiaChance = "1X";
-                } else if (aPerf.winRate > 0.4 && hPerf.winRate < 0.3) {
+                } else if (awayWinRate > 0.45 && homeWinRate < 0.35) {
                     segno = "2";
                     doppiaChance = "X2";
                 } else {
                     segno = "X";
-                    doppiaChance = (hPerf.winRate >= aPerf.winRate) ? "1X" : "X2";
+                    doppiaChance = (homeWinRate >= awayWinRate) ? "1X" : "X2";
                 }
 
-                const sommaGolAttesi = ((hPerf.avgScored + aPerf.avgConceded) / 2) + ((aPerf.avgScored + hPerf.avgConceded) / 2);
-                const underOver = sommaGolAttesi >= 2.35 ? "OVER 2.5" : "UNDER 2.5";
+                const sommaGolAttesi = ((avgHomeScored + avgAwayConceded) / 2) + ((avgAwayScored + avgHomeConceded) / 2);
+                const underOver = sommaGolAttesi >= 2.4 ? "OVER 2.5" : "UNDER 2.5";
 
-                const goalGoal = (hPerf.avgScored > 1.1 && aPerf.avgScored > 1.1) ? "GOAL" : "NO GOAL";
+                const goalGoal = (avgHomeScored > 1.15 && avgAwayScored > 1.15) ? "GOAL" : "NO GOAL";
 
                 let multigol = "1-3 GOL";
-                if (sommaGolAttesi >= 3.1) multigol = "3-5 GOL";
-                else if (sommaGolAttesi >= 2.2) multigol = "2-4 GOL";
-                else if (sommaGolAttesi < 1.5) multigol = "1-2 GOL";
+                if (sommaGolAttesi >= 3.2) multigol = "3-5 GOL";
+                else if (sommaGolAttesi >= 2.3) multigol = "2-4 GOL";
+                else if (sommaGolAttesi < 1.6) multigol = "1-2 GOL";
 
                 let lineaAlt = "OVER 1.5";
-                if (sommaGolAttesi < 1.8) lineaAlt = "UNDER 3.5";
-                if (sommaGolAttesi >= 3.5) lineaAlt = "OVER 3.5";
+                if (sommaGolAttesi < 1.9) lineaAlt = "UNDER 3.5";
+                if (sommaGolAttesi >= 3.6) lineaAlt = "OVER 3.5";
 
                 const comboGG = `${doppiaChance} + ${goalGoal}`;
                 const comboUO = `${doppiaChance} + ${underOver}`;
@@ -464,11 +427,11 @@
 
                 document.getElementById('resultsContainer').style.display = 'block';
             } else {
-                alert("Storico partite insufficiente per elaborare le metriche di queste due squadre.");
+                alert("Dati live non ancora disponibili per l'inizio di questa stagione.");
             }
         } catch (error) {
             console.error(error);
-            alert("Errore nell'elaborazione del pronostico.");
+            alert("Errore nell'elaborazione del pronostico live.");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
