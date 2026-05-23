@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SasyBet Pro - Live 2026</title>
+    <title>SasyBet Pro - Solo Dati Live</title>
     <style>
         :root {
             --bg-principal: #0f172a;
@@ -104,7 +104,7 @@
         }
 
         @keyframes pulse {
-            0% { opacity: 0.6; }
+            0 { opacity: 0.6; }
             50% { opacity: 1; }
             100% { opacity: 0.6; }
         }
@@ -183,17 +183,15 @@
 <div class="container">
     <h1>SasyBet Pro</h1>
     
-    <!-- Selezione Campionato -->
     <div class="form-group">
-        <label for="league">Campionato Attivo (Stagione 2026)</label>
+        <label for="league">Competizione (Stagione Corrente)</label>
         <select id="league" onchange="loadTeams()">
-            <option value="">-- Seleziona Competizione In Corso --</option>
+            <option value="">-- Seleziona Campionato --</option>
             <option value="253">Major League Soccer (USA)</option>
             <option value="71">Serie A (Brasile)</option>
         </select>
     </div>
 
-    <!-- Squadre -->
     <div class="form-group">
         <label for="homeTeam">Squadra di Casa</label>
         <select id="homeTeam" disabled>
@@ -208,11 +206,10 @@
         </select>
     </div>
 
-    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici Real-Time</button>
+    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostico</button>
     
-    <div id="loading" class="loading">Sincronizzazione dati live e calcolo metriche in corso...</div>
+    <div id="loading" class="loading">Elaborazione dati live in corso...</div>
 
-    <!-- Schermata Risultati -->
     <div id="resultsContainer" class="results-container">
         <div class="match-header">
             <span id="lblHome" style="color: var(--neon-blue);">HOME</span>
@@ -220,7 +217,7 @@
             <span id="lblAway" style="color: var(--neon-green);">AWAY</span>
         </div>
 
-        <h3 style="margin-top: 20px; color: var(--text-muted); font-size: 14px; text-transform: uppercase;">Analisi Algoritmica Esiti</h3>
+        <h3 style="margin-top: 20px; color: var(--text-muted); font-size: 14px; text-transform: uppercase;">Analisi Algoritmica</h3>
         
         <div class="prediction-grid">
             <div class="card-pred">
@@ -261,11 +258,11 @@
 
 <script>
     const BASE_URL = "https://v3.football.api-sports.io";
-    const CURRENT_SEASON = "2026"; // Impostata sul 2026 per i campionati estivi attivi ora
+    const CURRENT_SEASON = "2026"; 
     let teamsData = [];
 
     function getHeaders() {
-        // INSERISCI LA TUA CHIAVE DENTRO LE VIRGOLETTE QUI SOTTO
+        // INSERISCI LA TUA CHIAVE TRA LE VIRGOLETTE QUI SOTTO
         const userKey = "71383cdcdaed2261cd564c7fb2906356"; 
         
         return {
@@ -313,11 +310,11 @@
                 awaySelect.disabled = false;
                 predictBtn.disabled = false;
             } else {
-                alert("Nessun dato ricevuto per la stagione 2026 di questo campionato.");
+                alert("Nessun dato ricevuto. Controlla la chiave o la connessione.");
             }
         } catch (error) {
             console.error(error);
-            alert("Errore di rete durante il caricamento delle squadre.");
+            alert("Errore di rete durante il caricamento.");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
@@ -352,7 +349,7 @@
             return;
         }
         if (homeId === awayId) {
-            alert("La squadra di casa e quella ospite devono essere diverse!");
+            alert("Scegli due squadre differenti!");
             return;
         }
 
@@ -427,11 +424,11 @@
 
                 document.getElementById('resultsContainer').style.display = 'block';
             } else {
-                alert("Dati live non ancora disponibili per l'inizio di questa stagione.");
+                alert("Statistiche non disponibili per queste squadre.");
             }
         } catch (error) {
             console.error(error);
-            alert("Errore nell'elaborazione del pronostico live.");
+            alert("Errore durante il calcolo del pronostico.");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
