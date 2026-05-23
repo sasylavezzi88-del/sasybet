@@ -1,15 +1,279 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SasyBet Pro - Storico Live</title>
+    <style>
+        :root {
+            --bg-principal: #0f172a;
+            --bg-card: #1e293b;
+            --neon-green: #2ecc71;
+            --neon-blue: #00d2ff;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-principal);
+            color: var(--text-main);
+            margin: 0;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 20px;
+            color: var(--neon-green);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+        }
+
+        select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: var(--bg-principal);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            font-size: 16px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 8px rgba(0, 210, 255, 0.2);
+        }
+
+        button {
+            background-color: var(--neon-green);
+            color: var(--bg-principal);
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            filter: brightness(1.2);
+        }
+
+        button:disabled {
+            background-color: #475569;
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: var(--neon-blue);
+            font-weight: bold;
+            margin: 15px 0;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-principal);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .match-header span {
+            flex: 1;
+            text-align: center;
+        }
+
+        .vs {
+            color: var(--neon-blue);
+            font-size: 14px;
+        }
+
+        .results-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .prediction-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        @media(min-width: 480px) {
+            .prediction-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card-pred {
+            background: var(--bg-principal);
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid var(--neon-blue);
+            border-top: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-pred.combo {
+            border-left-color: var(--neon-green);
+        }
+
+        .card-title {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .card-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>SasyBet Pro</h1>
+    
+    <!-- Selezione Campionato -->
+    <div class="form-group">
+        <label for="league">Campionato</label>
+        <select id="league" onchange="loadTeams()">
+            <option value="">-- Seleziona Competizione --</option>
+            <option value="135">Serie A (Italia)</option>
+            <option value="39">Premier League (Inghilterra)</option>
+            <option value="140">La Liga (Spagna)</option>
+            <option value="78">Bundesliga (Germania)</option>
+            <option value="61">Ligue 1 (Francia)</option>
+        </select>
+    </div>
+
+    <!-- Squadre -->
+    <div class="form-group">
+        <label for="homeTeam">Squadra di Casa</label>
+        <select id="homeTeam" disabled>
+            <option value="">Seleziona prima il campionato</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="awayTeam">Squadra Ospite</label>
+        <select id="awayTeam" disabled>
+            <option value="">Seleziona prima il campionato</option>
+        </select>
+    </div>
+
+    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici su Storico</button>
+    
+    <div id="loading" class="loading">Analisi approfondita dello storico in corso...</div>
+
+    <!-- Schermata Risultati -->
+    <div id="resultsContainer" class="results-container">
+        <div class="match-header">
+            <span id="lblHome" style="color: var(--neon-blue);">HOME</span>
+            <span class="vs">VS</span>
+            <span id="lblAway" style="color: var(--neon-green);">AWAY</span>
+        </div>
+
+        <h3 style="margin-top: 20px; color: var(--text-muted); font-size: 14px; text-transform: uppercase;">Analisi Algoritmica Esiti</h3>
+        
+        <div class="prediction-grid">
+            <div class="card-pred">
+                <div class="card-title">Segno Fisso (1X2)</div>
+                <div id="res1X2" class="card-value">-</div>
+            </div>
+            <div class="card-pred">
+                <div class="card-title">Doppia Chance</div>
+                <div id="resDC" class="card-value">-</div>
+            </div>
+            <div class="card-pred">
+                <div class="card-title">Under / Over 2.5</div>
+                <div id="resUO" class="card-value">-</div>
+            </div>
+            <div class="card-pred">
+                <div class="card-title">Goal / No Goal</div>
+                <div id="resGG" class="card-value">-</div>
+            </div>
+            <div class="card-pred">
+                <div class="card-title">Multigol Consigliato</div>
+                <div id="resMG" class="card-value">-</div>
+            </div>
+            <div class="card-pred">
+                <div class="card-title">Fascia Linee Reti</div>
+                <div id="resAlt" class="card-value">-</div>
+            </div>
+            <div class="card-pred combo">
+                <div class="card-title">Combo (1X2 + G/NG)</div>
+                <div id="resComboGG" class="card-value">-</div>
+            </div>
+            <div class="card-pred combo">
+                <div class="card-title">Combo (1X2 + U/O 2.5)</div>
+                <div id="resComboUO" class="card-value">-</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const BASE_URL = "https://v3.football.api-sports.io";
     const CURRENT_SEASON = "2025"; 
     let teamsData = [];
 
     function getHeaders() {
-        // INSERISCI LA TUA CHIAVE TRA LE VIRGOLETTE QUI SOTTO
+        // INSERISCI LA TUA CHIAVE DENTRO LE VIRGOLETTE QUI SOTTO
         const userKey = "71383cdcdaed2261cd564c7fb2906356"; 
         
         return {
             "x-rapidapi-key": userKey,
-            "x-apisports-key": userKey, // Doppia sicurezza se usi il pannello diretto di API-Sports
+            "x-apisports-key": userKey,
             "x-rapidapi-host": "v3.football.api-sports.io"
         };
     }
@@ -35,7 +299,6 @@
             });
             const data = await response.json();
             
-            // Controllo se l'API ha risposto con un errore di autenticazione interno
             if (data.errors && Object.keys(data.errors).length > 0) {
                 alert("Errore API: " + JSON.stringify(data.errors) + ". Controlla la tua chiave!");
                 return;
@@ -212,3 +475,5 @@
         }
     }
 </script>
+</body>
+</html>
