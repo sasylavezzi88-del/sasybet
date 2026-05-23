@@ -55,7 +55,7 @@
             color: var(--text-muted);
         }
 
-        input, select, button {
+        select, button {
             width: 100%;
             padding: 12px;
             border-radius: 8px;
@@ -67,7 +67,7 @@
             transition: all 0.3s ease;
         }
 
-        input:focus, select:focus {
+        select:focus {
             outline: none;
             border-color: var(--neon-blue);
             box-shadow: 0 0 8px rgba(0, 210, 255, 0.2);
@@ -182,12 +182,6 @@
 
 <div class="container">
     <h1>SasyBet Pro</h1>
-
-    <!-- Configurazione Chiave -->
-    <div class="form-group">
-        <label for="apiKey">Chiave API (API-Sports)</label>
-        <input type="password" id="apiKey" placeholder="71383cdcdaed2261cd564c7fb2906356">
-    </div>
     
     <!-- Selezione Campionato -->
     <div class="form-group">
@@ -274,7 +268,8 @@
     let teamsData = [];
 
     function getHeaders() {
-        const userKey = document.getElementById('apiKey').value.trim();
+        // INSERISCI LA TUA CHIAVE DENTRO LE VIRGOLETTE QUI SOTTO
+        const userKey = "71383cdcdaed2261cd564c7fb2906356"; 
         return {
             "x-rapidapi-key": userKey,
             "x-rapidapi-host": "v3.football.api-sports.io"
@@ -286,14 +281,7 @@
         const homeSelect = document.getElementById('homeTeam');
         const awaySelect = document.getElementById('awayTeam');
         const predictBtn = document.getElementById('predictBtn');
-        const userKey = document.getElementById('apiKey').value.trim();
         
-        if(!userKey) {
-            alert("Per favore, inserisci prima la tua API Key nel campo in alto.");
-            document.getElementById('league').value = "";
-            return;
-        }
-
         if (!leagueId) {
             resetForm();
             return;
@@ -317,7 +305,7 @@
                 awaySelect.disabled = false;
                 predictBtn.disabled = false;
             } else {
-                alert("Nessun dato ricevuto. Verifica che l'API Key inserita sia corretta.");
+                alert("Nessun dato ricevuto. Verifica di aver inserito correttamente la tua API Key all'interno del codice JavaScript.");
             }
         } catch (error) {
             console.error(error);
@@ -373,11 +361,9 @@
             const aStats = awayRes.response;
 
             if (hStats && aStats) {
-                // Nomi Squadre
                 document.getElementById('lblHome').textContent = hStats.team.name;
                 document.getElementById('lblAway').textContent = aStats.team.name;
 
-                // Calcolo indici e percentuali base
                 const homePlayed = hStats.fixtures.played.home || 1;
                 const awayPlayed = aStats.fixtures.played.away || 1;
 
@@ -392,7 +378,6 @@
                 const avgAwayScored = parseFloat(aStats.goals.for.average.away) || 0;
                 const avgAwayConceded = parseFloat(aStats.goals.against.average.away) || 0;
 
-                // 1. Segno Fisso 1X2 e Doppia Chance
                 let segno = "X";
                 let doppiaChance = "1X";
                 const attaccoCasa = homeWinRate + (1 - awayLoseRate);
@@ -408,29 +393,23 @@
                     doppiaChance = (homeWinRate >= awayWinRate) ? "1X" : "X2";
                 }
 
-                // 2. Under / Over 2.5
                 const sommaGolAttesi = ((avgHomeScored + avgAwayConceded) / 2) + ((avgAwayScored + avgHomeConceded) / 2);
                 const underOver = sommaGolAttesi >= 2.4 ? "OVER 2.5" : "UNDER 2.5";
 
-                // 3. Goal / No Goal
                 const goalGoal = (avgHomeScored > 1.15 && avgAwayScored > 1.15) ? "GOAL" : "NO GOAL";
 
-                // 4. Multigol Consigliato
                 let multigol = "1-3 GOL";
                 if (sommaGolAttesi >= 3.2) multigol = "3-5 GOL";
                 else if (sommaGolAttesi >= 2.3) multigol = "2-4 GOL";
                 else if (sommaGolAttesi < 1.6) multigol = "1-2 GOL";
 
-                // 5. Fascia Alternativa Linee Reti
                 let lineaAlt = "OVER 1.5";
                 if (sommaGolAttesi < 1.9) lineaAlt = "UNDER 3.5";
                 if (sommaGolAttesi >= 3.6) lineaAlt = "OVER 3.5";
 
-                // 6. Combo Match
                 const comboGG = `${doppiaChance} + ${goalGoal}`;
                 const comboUO = `${doppiaChance} + ${underOver}`;
 
-                // Iniezione dati nell'interfaccia
                 document.getElementById('res1X2').textContent = segno;
                 document.getElementById('resDC').textContent = doppiaChance;
                 document.getElementById('resUO').textContent = underOver;
