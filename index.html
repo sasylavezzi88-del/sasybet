@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SasyBet Pro</title>
+    <title>SasyBet Pro - Storico Live</title>
     <style>
         :root {
             --bg-principal: #0f172a;
@@ -211,9 +211,9 @@
         </select>
     </div>
 
-    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici Real-Time</button>
+    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici su Storico</button>
     
-    <div id="loading" class="loading">Sincronizzazione dati live e calcolo metriche in corso...</div>
+    <div id="loading" class="loading">Analisi approfondita dello storico in corso...</div>
 
     <!-- Schermata Risultati -->
     <div id="resultsContainer" class="results-container">
@@ -296,6 +296,8 @@
             
             if (data.response && data.response.length > 0) {
                 teamsData = data.response;
+                // Escludiamo eventuali squadre vuote o dati sporchi
+                teamsData = teamsData.filter(item => item.team.name);
                 teamsData.sort((a, b) => a.team.name.localeCompare(b.team.name));
 
                 populateSelect(homeSelect, teamsData);
@@ -305,7 +307,7 @@
                 awaySelect.disabled = false;
                 predictBtn.disabled = false;
             } else {
-                alert("Nessun dato ricevuto. Verifica di aver inserito correttamente la tua API Key all'interno del codice JavaScript.");
+                alert("Nessun dato ricevuto. Verifica di aver inserito correttamente la tua API Key.");
             }
         } catch (error) {
             console.error(error);
@@ -334,6 +336,53 @@
         document.getElementById('resultsContainer').style.display = 'none';
     }
 
+    // Estrae metriche reali dagli ultimi 10 match disputati da una squadra
+    async function getTeamPerformance(leagueId, teamId, isHome) {
+        const typeParam = isHome ? "home" : "away";
+        // Chiediamo gli ultimi 10 match di quel campionato per quella squadra
+        const res = await fetch(`${BASE_URL}/fixtures?league=${leagueId}&season=${CURRENT_SEASON}&team=${teamId}&last=10`, { headers: getHeaders() }).then(r => r.json());
+        
+        let wins = 0, draws = 0, loses = 0, goalsFor = 0, goalsAgainst = 0;
+        const matches = res.response || [];
+        
+        if(matches.length === 0) return null;
+
+        matches.forEach(m => {
+            const f = m.goals;
+            const teams = m.teams;
+            
+            // Determina se la squadra cercata giocava in casa o fuori in quel match specifico dello storico
+            const currentIsHome = (teams.home.id == teamId);
+            const scored = currentIsHome ? f.home : f.away;
+            const conceded = currentIsHome ? f.away : f.home;
+            
+            goalsFor += (scored || 0);
+            goalsAgainst += (conceded || 0);
+
+            if(scored > conceded) {
+                if(currentIsHome && isHome) wins++;
+                else if(!currentIsHome && !isHome) wins++;
+                else loses++;
+            } else if(scored < conceded) {
+                if(currentIsHome && isHome) loses++;
+                else if(!currentIsHome && !isHome) loses++;
+                else wins++;
+            } else {
+                draws++;
+            }
+        });
+
+        const total = matches.length;
+        return {
+            winRate: wins / total,
+            drawRate: draws / total,
+            loseRate: loses / total,
+            avgScored: goalsFor / total,
+            avgConceded: goalsAgainst / total,
+            name: isHome ? matches[0].teams.home.name : matches[0].teams.away.name
+        };
+    }
+
     async function generatePrediction() {
         const leagueId = document.getElementById('league').value;
         const homeId = document.getElementById('homeTeam').value;
@@ -352,64 +401,54 @@
         document.getElementById('resultsContainer').style.display = 'none';
 
         try {
-            const [homeRes, awayRes] = await Promise.all([
-                fetch(`${BASE_URL}/teams/statistics?league=${leagueId}&season=${CURRENT_SEASON}&team=${homeId}`, { headers: getHeaders() }).then(r => r.json()),
-                fetch(`${BASE_URL}/teams/statistics?league=${leagueId}&season=${CURRENT_SEASON}&team=${awayId}`, { headers: getHeaders() }).then(r => r.json())
+            const [hPerf, aPerf] = await Promise.all([
+                getTeamPerformance(leagueId, homeId, true),
+                getTeamPerformance(leagueId, awayId, false)
             ]);
 
-            const hStats = homeRes.response;
-            const aStats = awayRes.response;
+            if (hPerf && aPerf) {
+                document.getElementById('lblHome').textContent = hPerf.name;
+                document.getElementById('lblAway').textContent = aPerf.name;
 
-            if (hStats && aStats) {
-                document.getElementById('lblHome').textContent = hStats.team.name;
-                document.getElementById('lblAway').textContent = aStats.team.name;
-
-                const homePlayed = hStats.fixtures.played.home || 1;
-                const awayPlayed = aStats.fixtures.played.away || 1;
-
-                const homeWinRate = (hStats.fixtures.wins.home / homePlayed);
-                const homeDrawRate = (hStats.fixtures.draws.home / homePlayed);
-                const awayLoseRate = (aStats.fixtures.loses.away / awayPlayed);
-                const awayDrawRate = (aStats.fixtures.draws.away / awayPlayed);
-                const awayWinRate = (aStats.fixtures.wins.away / awayPlayed);
-
-                const avgHomeScored = parseFloat(hStats.goals.for.average.home) || 0;
-                const avgHomeConceded = parseFloat(hStats.goals.against.average.home) || 0;
-                const avgAwayScored = parseFloat(aStats.goals.for.average.away) || 0;
-                const avgAwayConceded = parseFloat(aStats.goals.against.average.away) || 0;
-
+                // 1. Calcolo Fisso 1X2 e Doppia Chance
                 let segno = "X";
                 let doppiaChance = "1X";
-                const attaccoCasa = homeWinRate + (1 - awayLoseRate);
+                const indiceAttacco = hPerf.winRate + (1 - aPerf.loseRate);
 
-                if (attaccoCasa > 1.25) {
+                if (indiceAttacco > 1.2) {
                     segno = "1";
                     doppiaChance = "1X";
-                } else if (awayWinRate > 0.45 && homeWinRate < 0.35) {
+                } else if (aPerf.winRate > 0.4 && hPerf.winRate < 0.3) {
                     segno = "2";
                     doppiaChance = "X2";
                 } else {
                     segno = "X";
-                    doppiaChance = (homeWinRate >= awayWinRate) ? "1X" : "X2";
+                    doppiaChance = (hPerf.winRate >= aPerf.winRate) ? "1X" : "X2";
                 }
 
-                const sommaGolAttesi = ((avgHomeScored + avgAwayConceded) / 2) + ((avgAwayScored + avgHomeConceded) / 2);
-                const underOver = sommaGolAttesi >= 2.4 ? "OVER 2.5" : "UNDER 2.5";
+                // 2. Under / Over 2.5 basato sulle medie reali riscontrate
+                const sommaGolAttesi = ((hPerf.avgScored + aPerf.avgConceded) / 2) + ((aPerf.avgScored + hPerf.avgConceded) / 2);
+                const underOver = sommaGolAttesi >= 2.35 ? "OVER 2.5" : "UNDER 2.5";
 
-                const goalGoal = (avgHomeScored > 1.15 && avgAwayScored > 1.15) ? "GOAL" : "NO GOAL";
+                // 3. Goal / No Goal
+                const goalGoal = (hPerf.avgScored > 1.1 && aPerf.avgScored > 1.1) ? "GOAL" : "NO GOAL";
 
+                // 4. Multigol Consigliato
                 let multigol = "1-3 GOL";
-                if (sommaGolAttesi >= 3.2) multigol = "3-5 GOL";
-                else if (sommaGolAttesi >= 2.3) multigol = "2-4 GOL";
-                else if (sommaGolAttesi < 1.6) multigol = "1-2 GOL";
+                if (sommaGolAttesi >= 3.1) multigol = "3-5 GOL";
+                else if (sommaGolAttesi >= 2.2) multigol = "2-4 GOL";
+                else if (sommaGolAttesi < 1.5) multigol = "1-2 GOL";
 
+                // 5. Fascia Alternativa Linee Reti
                 let lineaAlt = "OVER 1.5";
-                if (sommaGolAttesi < 1.9) lineaAlt = "UNDER 3.5";
-                if (sommaGolAttesi >= 3.6) lineaAlt = "OVER 3.5";
+                if (sommaGolAttesi < 1.8) lineaAlt = "UNDER 3.5";
+                if (sommaGolAttesi >= 3.5) lineaAlt = "OVER 3.5";
 
+                // 6. Combo Match combinate
                 const comboGG = `${doppiaChance} + ${goalGoal}`;
                 const comboUO = `${doppiaChance} + ${underOver}`;
 
+                // Iniezione dati nell'interfaccia scura
                 document.getElementById('res1X2').textContent = segno;
                 document.getElementById('resDC').textContent = doppiaChance;
                 document.getElementById('resUO').textContent = underOver;
@@ -421,11 +460,11 @@
 
                 document.getElementById('resultsContainer').style.display = 'block';
             } else {
-                alert("Dati insufficienti per generare le statistiche di questo match.");
+                alert("Storico partite insufficiente per elaborare le metriche di queste due squadre.");
             }
         } catch (error) {
             console.error(error);
-            alert("Errore nell'elaborazione del pronostico.");
+            alert("Errore nel recupero dello storico dei match.");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
