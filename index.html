@@ -1,277 +1,15 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SasyBet Pro - Storico Live</title>
-    <style>
-        :root {
-            --bg-principal: #0f172a;
-            --bg-card: #1e293b;
-            --neon-green: #2ecc71;
-            --neon-blue: #00d2ff;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
-        }
-
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background-color: var(--bg-principal);
-            color: var(--text-main);
-            margin: 0;
-            padding: 15px;
-        }
-
-        .container {
-            max-width: 650px;
-            margin: 0 auto;
-            background: var(--bg-card);
-            border-radius: 16px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-color);
-        }
-
-        h1 {
-            text-align: center;
-            font-size: 28px;
-            margin-bottom: 20px;
-            color: var(--neon-green);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 0 0 10px rgba(46, 204, 113, 0.3);
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: var(--text-muted);
-        }
-
-        select, button {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            background-color: var(--bg-principal);
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            font-size: 16px;
-            box-sizing: border-box;
-            transition: all 0.3s ease;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: var(--neon-blue);
-            box-shadow: 0 0 8px rgba(0, 210, 255, 0.2);
-        }
-
-        button {
-            background-color: var(--neon-green);
-            color: var(--bg-principal);
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            margin-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        button:hover {
-            filter: brightness(1.2);
-        }
-
-        button:disabled {
-            background-color: #475569;
-            color: var(--text-muted);
-            cursor: not-allowed;
-        }
-
-        .loading {
-            display: none;
-            text-align: center;
-            color: var(--neon-blue);
-            font-weight: bold;
-            margin: 15px 0;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-
-        .match-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--bg-principal);
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            border: 1px solid var(--border-color);
-            font-weight: bold;
-            font-size: 18px;
-        }
-
-        .match-header span {
-            flex: 1;
-            text-align: center;
-        }
-
-        .vs {
-            color: var(--neon-blue);
-            font-size: 14px;
-        }
-
-        .results-container {
-            display: none;
-            margin-top: 20px;
-        }
-
-        .prediction-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
-        }
-
-        @media(min-width: 480px) {
-            .prediction-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .card-pred {
-            background: var(--bg-principal);
-            padding: 15px;
-            border-radius: 10px;
-            border-left: 4px solid var(--neon-blue);
-            border-top: 1px solid var(--border-color);
-            border-right: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .card-pred.combo {
-            border-left-color: var(--neon-green);
-        }
-
-        .card-title {
-            font-size: 12px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        .card-value {
-            font-size: 20px;
-            font-weight: 800;
-            color: var(--text-main);
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h1>SasyBet Pro</h1>
-    
-    <!-- Selezione Campionato -->
-    <div class="form-group">
-        <label for="league">Campionato</label>
-        <select id="league" onchange="loadTeams()">
-            <option value="">-- Seleziona Competizione --</option>
-            <option value="135">Serie A (Italia)</option>
-            <option value="39">Premier League (Inghilterra)</option>
-            <option value="140">La Liga (Spagna)</option>
-            <option value="78">Bundesliga (Germania)</option>
-            <option value="61">Ligue 1 (Francia)</option>
-        </select>
-    </div>
-
-    <!-- Squadre -->
-    <div class="form-group">
-        <label for="homeTeam">Squadra di Casa</label>
-        <select id="homeTeam" disabled>
-            <option value="">Seleziona prima il campionato</option>
-        </select>
-    </div>
-
-    <div class="form-group">
-        <label for="awayTeam">Squadra Ospite</label>
-        <select id="awayTeam" disabled>
-            <option value="">Seleziona prima il campionato</option>
-        </select>
-    </div>
-
-    <button id="predictBtn" onclick="generatePrediction()" disabled>Elabora Pronostici su Storico</button>
-    
-    <div id="loading" class="loading">Analisi approfondita dello storico in corso...</div>
-
-    <!-- Schermata Risultati -->
-    <div id="resultsContainer" class="results-container">
-        <div class="match-header">
-            <span id="lblHome" style="color: var(--neon-blue);">HOME</span>
-            <span class="vs">VS</span>
-            <span id="lblAway" style="color: var(--neon-green);">AWAY</span>
-        </div>
-
-        <h3 style="margin-top: 20px; color: var(--text-muted); font-size: 14px; text-transform: uppercase;">Analisi Algoritmica Esiti</h3>
-        
-        <div class="prediction-grid">
-            <div class="card-pred">
-                <div class="card-title">Segno Fisso (1X2)</div>
-                <div id="res1X2" class="card-value">-</div>
-            </div>
-            <div class="card-pred">
-                <div class="card-title">Doppia Chance</div>
-                <div id="resDC" class="card-value">-</div>
-            </div>
-            <div class="card-pred">
-                <div class="card-title">Under / Over 2.5</div>
-                <div id="resUO" class="card-value">-</div>
-            </div>
-            <div class="card-pred">
-                <div class="card-title">Goal / No Goal</div>
-                <div id="resGG" class="card-value">-</div>
-            </div>
-            <div class="card-pred">
-                <div class="card-title">Multigol Consigliato</div>
-                <div id="resMG" class="card-value">-</div>
-            </div>
-            <div class="card-pred">
-                <div class="card-title">Fascia Linee Reti</div>
-                <div id="resAlt" class="card-value">-</div>
-            </div>
-            <div class="card-pred combo">
-                <div class="card-title">Combo (1X2 + G/NG)</div>
-                <div id="resComboGG" class="card-value">-</div>
-            </div>
-            <div class="card-pred combo">
-                <div class="card-title">Combo (1X2 + U/O 2.5)</div>
-                <div id="resComboUO" class="card-value">-</div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
     const BASE_URL = "https://v3.football.api-sports.io";
     const CURRENT_SEASON = "2025"; 
     let teamsData = [];
 
     function getHeaders() {
-        // INSERISCI LA TUA CHIAVE DENTRO LE VIRGOLETTE QUI SOTTO
+        // INSERISCI LA TUA CHIAVE TRA LE VIRGOLETTE QUI SOTTO
         const userKey = "71383cdcdaed2261cd564c7fb2906356"; 
+        
         return {
             "x-rapidapi-key": userKey,
+            "x-apisports-key": userKey, // Doppia sicurezza se usi il pannello diretto di API-Sports
             "x-rapidapi-host": "v3.football.api-sports.io"
         };
     }
@@ -291,12 +29,20 @@
         predictBtn.disabled = true;
 
         try {
-            const response = await fetch(`${BASE_URL}/teams?league=${leagueId}&season=${CURRENT_SEASON}`, { headers: getHeaders() });
+            const response = await fetch(`${BASE_URL}/teams?league=${leagueId}&season=${CURRENT_SEASON}`, { 
+                method: 'GET',
+                headers: getHeaders() 
+            });
             const data = await response.json();
+            
+            // Controllo se l'API ha risposto con un errore di autenticazione interno
+            if (data.errors && Object.keys(data.errors).length > 0) {
+                alert("Errore API: " + JSON.stringify(data.errors) + ". Controlla la tua chiave!");
+                return;
+            }
             
             if (data.response && data.response.length > 0) {
                 teamsData = data.response;
-                // Escludiamo eventuali squadre vuote o dati sporchi
                 teamsData = teamsData.filter(item => item.team.name);
                 teamsData.sort((a, b) => a.team.name.localeCompare(b.team.name));
 
@@ -336,51 +82,54 @@
         document.getElementById('resultsContainer').style.display = 'none';
     }
 
-    // Estrae metriche reali dagli ultimi 10 match disputati da una squadra
     async function getTeamPerformance(leagueId, teamId, isHome) {
-        const typeParam = isHome ? "home" : "away";
-        // Chiediamo gli ultimi 10 match di quel campionato per quella squadra
-        const res = await fetch(`${BASE_URL}/fixtures?league=${leagueId}&season=${CURRENT_SEASON}&team=${teamId}&last=10`, { headers: getHeaders() }).then(r => r.json());
-        
-        let wins = 0, draws = 0, loses = 0, goalsFor = 0, goalsAgainst = 0;
-        const matches = res.response || [];
-        
-        if(matches.length === 0) return null;
-
-        matches.forEach(m => {
-            const f = m.goals;
-            const teams = m.teams;
+        try {
+            const res = await fetch(`${BASE_URL}/fixtures?league=${leagueId}&season=${CURRENT_SEASON}&team=${teamId}&last=10`, { 
+                method: 'GET',
+                headers: getHeaders() 
+            }).then(r => r.json());
             
-            // Determina se la squadra cercata giocava in casa o fuori in quel match specifico dello storico
-            const currentIsHome = (teams.home.id == teamId);
-            const scored = currentIsHome ? f.home : f.away;
-            const conceded = currentIsHome ? f.away : f.home;
+            let wins = 0, draws = 0, loses = 0, goalsFor = 0, goalsAgainst = 0;
+            const matches = res.response || [];
             
-            goalsFor += (scored || 0);
-            goalsAgainst += (conceded || 0);
+            if(matches.length === 0) return null;
 
-            if(scored > conceded) {
-                if(currentIsHome && isHome) wins++;
-                else if(!currentIsHome && !isHome) wins++;
-                else loses++;
-            } else if(scored < conceded) {
-                if(currentIsHome && isHome) loses++;
-                else if(!currentIsHome && !isHome) loses++;
-                else wins++;
-            } else {
-                draws++;
-            }
-        });
+            matches.forEach(m => {
+                const f = m.goals;
+                const teams = m.teams;
+                const currentIsHome = (teams.home.id == teamId);
+                const scored = currentIsHome ? f.home : f.away;
+                const conceded = currentIsHome ? f.away : f.home;
+                
+                goalsFor += (scored || 0);
+                goalsAgainst += (conceded || 0);
 
-        const total = matches.length;
-        return {
-            winRate: wins / total,
-            drawRate: draws / total,
-            loseRate: loses / total,
-            avgScored: goalsFor / total,
-            avgConceded: goalsAgainst / total,
-            name: isHome ? matches[0].teams.home.name : matches[0].teams.away.name
-        };
+                if(scored > conceded) {
+                    if(currentIsHome && isHome) wins++;
+                    else if(!currentIsHome && !isHome) wins++;
+                    else loses++;
+                } else if(scored < conceded) {
+                    if(currentIsHome && isHome) loses++;
+                    else if(!currentIsHome && !isHome) loses++;
+                    else wins++;
+                } else {
+                    draws++;
+                }
+            });
+
+            const total = matches.length;
+            return {
+                winRate: wins / total,
+                drawRate: draws / total,
+                loseRate: loses / total,
+                avgScored: goalsFor / total,
+                avgConceded: goalsAgainst / total,
+                name: isHome ? matches[0].teams.home.name : matches[0].teams.away.name
+            };
+        } catch(e) {
+            console.error(e);
+            return null;
+        }
     }
 
     async function generatePrediction() {
@@ -410,7 +159,6 @@
                 document.getElementById('lblHome').textContent = hPerf.name;
                 document.getElementById('lblAway').textContent = aPerf.name;
 
-                // 1. Calcolo Fisso 1X2 e Doppia Chance
                 let segno = "X";
                 let doppiaChance = "1X";
                 const indiceAttacco = hPerf.winRate + (1 - aPerf.loseRate);
@@ -426,29 +174,23 @@
                     doppiaChance = (hPerf.winRate >= aPerf.winRate) ? "1X" : "X2";
                 }
 
-                // 2. Under / Over 2.5 basato sulle medie reali riscontrate
                 const sommaGolAttesi = ((hPerf.avgScored + aPerf.avgConceded) / 2) + ((aPerf.avgScored + hPerf.avgConceded) / 2);
                 const underOver = sommaGolAttesi >= 2.35 ? "OVER 2.5" : "UNDER 2.5";
 
-                // 3. Goal / No Goal
                 const goalGoal = (hPerf.avgScored > 1.1 && aPerf.avgScored > 1.1) ? "GOAL" : "NO GOAL";
 
-                // 4. Multigol Consigliato
                 let multigol = "1-3 GOL";
                 if (sommaGolAttesi >= 3.1) multigol = "3-5 GOL";
                 else if (sommaGolAttesi >= 2.2) multigol = "2-4 GOL";
                 else if (sommaGolAttesi < 1.5) multigol = "1-2 GOL";
 
-                // 5. Fascia Alternativa Linee Reti
                 let lineaAlt = "OVER 1.5";
                 if (sommaGolAttesi < 1.8) lineaAlt = "UNDER 3.5";
                 if (sommaGolAttesi >= 3.5) lineaAlt = "OVER 3.5";
 
-                // 6. Combo Match combinate
                 const comboGG = `${doppiaChance} + ${goalGoal}`;
                 const comboUO = `${doppiaChance} + ${underOver}`;
 
-                // Iniezione dati nell'interfaccia scura
                 document.getElementById('res1X2').textContent = segno;
                 document.getElementById('resDC').textContent = doppiaChance;
                 document.getElementById('resUO').textContent = underOver;
@@ -464,12 +206,9 @@
             }
         } catch (error) {
             console.error(error);
-            alert("Errore nel recupero dello storico dei match.");
+            alert("Errore nell'elaborazione del pronostico.");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
     }
 </script>
-
-</body>
-</html>
