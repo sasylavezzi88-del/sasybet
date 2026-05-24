@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SasyBet Pro - Database Autonomo</title>
+    <title>SasyBet Pro - Database Autonomo & API Ready</title>
     <style>
         :root {
             --bg-principal: #0f172a;
@@ -188,7 +188,7 @@
     <h1>SasyBet Pro</h1>
     
     <div class="form-group">
-        <label for="league">Competizione (Database Storico Integrato)</label>
+        <label for="league">Competizione</label>
         <div class="select-wrapper">
             <select id="league" onchange="loadTeams()">
                 <option value="">-- Seleziona Campionato --</option>
@@ -267,6 +267,15 @@
 </div>
 
 <script>
+    // ==========================================
+    // CONFIGURAZIONE API FOOTBALL-DATA.ORG
+    // ==========================================
+    const API_CONFIG = {
+        apiKey: '90db18be3f0b40b6a79f190761515885', // Incolla qui il tuo token quando ti registri
+        baseUrl: 'https://api.football-data.org/v4/competitions/',
+        useLiveAPI: false // Cambia in true per attivare le chiamate live dall'API esterna
+    };
+
     // Database reale e bilanciato aggiornato alla stagione 2025/2026
     const localDatabase = {
         seriea: [
@@ -283,7 +292,7 @@
             { id: "udinese", name: "Udinese", winRate: 0.32, drawRate: 0.36, loseRate: 0.32, avgScored: 1.18, avgConceded: 1.22 },
             { id: "genoa", name: "Genoa", winRate: 0.31, drawRate: 0.34, loseRate: 0.35, avgScored: 1.05, avgConceded: 1.25 },
             { id: "lecce", name: "Lecce", winRate: 0.26, drawRate: 0.35, loseRate: 0.39, avgScored: 0.95, avgConceded: 1.35 },
-            { id: "empoli", name: "Empoli", winRate: 0.28, drawRate: 0.32, loseRate: 0.40, avgScored: 1.00, avgConceded: 1.38 },
+            { id: "cremonese", name: "Cremonese", winRate: 0.28, drawRate: 0.32, loseRate: 0.40, avgScored: 1.00, avgConceded: 1.38 },
             { id: "cagliari", name: "Cagliari", winRate: 0.29, drawRate: 0.31, loseRate: 0.40, avgScored: 1.12, avgConceded: 1.42 },
             { id: "verona", name: "Verona", winRate: 0.30, drawRate: 0.24, loseRate: 0.46, avgScored: 1.08, avgConceded: 1.48 },
             { id: "parma", name: "Parma", winRate: 0.28, drawRate: 0.33, loseRate: 0.39, avgScored: 1.20, avgConceded: 1.45 },
@@ -357,18 +366,50 @@
         ]
     };
 
-    function loadTeams() {
+    // Mapping ID Campionati per Football-Data.org (Serie A=SA, Premier=PL, ecc.)
+    const leagueMapping = { seriea: 'SA', premier: 'PL', laliga: 'PD', bundes: 'BL1' };
+
+    async function fetchAPIData(leagueKey) {
+        const compCode = leagueMapping[leagueKey];
+        if (!compCode) return null;
+        try {
+            const response = await fetch(`${API_CONFIG.baseUrl}${compCode}/teams`, {
+                headers: { 'X-Auth-Token': API_CONFIG.apiKey }
+            });
+            if (!response.ok) throw new Error("Errore chiamata API");
+            const data = await response.json();
+            // Mappa i dati dell'API nel formato usato dall'app
+            return data.teams.map(t => ({
+                id: t.tla ? t.tla.toLowerCase() : String(t.id),
+                name: t.shortName || t.name,
+                // Parametri default (verranno sovrascritti se agganci le statistiche del database)
+                winRate: 0.35, drawRate: 0.30, loseRate: 0.35, avgScored: 1.30, avgConceded: 1.30
+            }));
+        } catch (error) {
+            console.error("Impossibile caricare i dati live. Uso database locale.", error);
+            return null;
+        }
+    }
+
+    async function loadTeams() {
         const leagueKey = document.getElementById('league').value;
         const homeSelect = document.getElementById('homeTeam');
         const awaySelect = document.getElementById('awayTeam');
         const predictBtn = document.getElementById('predictBtn');
         
-        if (!leagueKey || !localDatabase[leagueKey]) {
+        if (!leagueKey || (!localDatabase[leagueKey] && !API_CONFIG.useLiveAPI)) {
             resetForm();
             return;
         }
 
-        const teams = localDatabase[leagueKey];
+        let teams = [];
+        if (API_CONFIG.useLiveAPI && API_CONFIG.apiKey !== 'INSERISCI_QUI_LA_TUA_KEY') {
+            const apiTeams = await fetchAPIData(leagueKey);
+            teams = apiTeams ? apiTeams : localDatabase[leagueKey];
+        } else {
+            teams = localDatabase[leagueKey];
+        }
+
         // Ordina alfabeticamente
         teams.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -397,6 +438,42 @@
         document.getElementById('awayTeam').disabled = true;
         document.getElementById('predictBtn').disabled = true;
         document.getElementById('resultsContainer').style.display = 'none';
+    }
+
+    // ==========================================
+    // FUNZIONE DI COERENZA LOGICA ANTIBUG
+    // ==========================================
+    function checkCoherence(outputs) {
+        let { segno, doppiaChance, underOver, goalGoal, multigol, lineaAlt } = outputs;
+
+        // Regola 1: Se il segno è X fisso e c'è NO GOAL, l'unico risultato ammesso è lo 0-0.
+        // Di conseguenza, forza Under 2.5, Multigol coerente (1-2 o 0-2) e Linea Alt corretta.
+        if (segno === "X" && goalGoal === "NO GOAL") {
+            underOver = "UNDER 2.5";
+            if (multigol === "2-4 GOL" || multigol === "3-5 GOL") {
+                multigol = "1-2 GOL"; 
+            }
+            lineaAlt = "UNDER 3.5";
+        }
+
+        // Regola 2: Se è presente un OVER 2.5 e il segno principale calcolato è X, 
+        // l'esito deve essere necessariamente un pareggio con gol (1-1, 2-2, ecc.). Forza GOAL.
+        if (segno === "X" && underOver === "OVER 2.5") {
+            goalGoal = "GOAL";
+            if (multigol === "1-2 GOL") {
+                multigol = "2-4 GOL";
+            }
+        }
+
+        // Regola 3: Coerenza tra i mercati Under/Over generali e le fasce Multigol
+        if (underOver === "OVER 2.5" && multigol === "1-2 GOL") {
+            multigol = "2-4 GOL";
+        }
+        if (underOver === "UNDER 2.5" && multigol === "3-5 GOL") {
+            multigol = "1-3 GOL";
+        }
+
+        return { segno, doppiaChance, underOver, goalGoal, multigol, lineaAlt };
     }
 
     function generatePrediction() {
@@ -437,9 +514,8 @@
             }
 
             const sommaGolAttesi = ((hPerf.avgScored + aPerf.avgConceded) / 2) + ((aPerf.avgScored + hPerf.avgConceded) / 2);
-            const underOver = sommaGolAttesi >= 2.4 ? "OVER 2.5" : "UNDER 2.5";
-
-            const goalGoal = (hPerf.avgScored > 1.2 && aPerf.avgScored > 1.2) ? "GOAL" : "NO GOAL";
+            let underOver = sommaGolAttesi >= 2.4 ? "OVER 2.5" : "UNDER 2.5";
+            let goalGoal = (hPerf.avgScored > 1.2 && aPerf.avgScored > 1.2) ? "GOAL" : "NO GOAL";
 
             let multigol = "1-3 GOL";
             if (sommaGolAttesi >= 3.2) multigol = "3-5 GOL";
@@ -450,20 +526,24 @@
             if (sommaGolAttesi < 1.9) lineaAlt = "UNDER 3.5";
             if (sommaGolAttesi >= 3.6) lineaAlt = "OVER 3.5";
 
-            const comboGG = `${doppiaChance} + ${goalGoal}`;
-            const comboUO = `${doppiaChance} + ${underOver}`;
+            // APPLICAZIONE FILTRO LOGICO DI COERENZA
+            const cleaned = checkCoherence({ segno, doppiaChance, underOver, goalGoal, multigol, lineaAlt });
 
-            document.getElementById('res1X2').textContent = segno;
-            document.getElementById('resDC').textContent = doppiaChance;
-            document.getElementById('resUO').textContent = underOver;
-            document.getElementById('resGG').textContent = goalGoal;
-            document.getElementById('resMG').textContent = multigol;
-            document.getElementById('resAlt').textContent = lineaAlt;
+            // Creazione delle Combo basate sugli esiti ripuliti e corretti
+            const comboGG = `${cleaned.doppiaChance} + ${cleaned.goalGoal}`;
+            const comboUO = `${cleaned.doppiaChance} + ${cleaned.underOver}`;
+
+            // Rendering a video
+            document.getElementById('res1X2').textContent = cleaned.segno;
+            document.getElementById('resDC').textContent = cleaned.doppiaChance;
+            document.getElementById('resUO').textContent = cleaned.underOver;
+            document.getElementById('resGG').textContent = cleaned.goalGoal;
+            document.getElementById('resMG').textContent = cleaned.multigol;
+            document.getElementById('resAlt').textContent = cleaned.lineaAlt;
             document.getElementById('resComboGG').textContent = comboGG;
             document.getElementById('resComboUO').textContent = comboUO;
 
             document.getElementById('resultsContainer').style.display = 'block';
-            
             document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
         }
     }
