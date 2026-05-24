@@ -271,9 +271,9 @@
     // CONFIGURAZIONE API FOOTBALL-DATA.ORG
     // ==========================================
     const API_CONFIG = {
-        apiKey: '90db18be3f0b40b6a79f190761515885', // Incolla qui il tuo token quando ti registri
+        apiKey: '90db18be3f0b40b6a79f190761515885', 
         baseUrl: 'https://api.football-data.org/v4/competitions/',
-        useLiveAPI: true // Cambia in true per attivare le chiamate live dall'API esterna
+        useLiveAPI: true 
     };
 
     // Database reale e bilanciato aggiornato alla stagione 2025/2026
@@ -369,6 +369,9 @@
     // Mapping ID Campionati per Football-Data.org (Serie A=SA, Premier=PL, ecc.)
     const leagueMapping = { seriea: 'SA', premier: 'PL', laliga: 'PD', bundes: 'BL1' };
 
+    // Stato temporaneo per memorizzare i dati delle squadre caricate nella sessione corrente
+    let currentLoadedTeams = [];
+
     async function fetchAPIData(leagueKey) {
         const compCode = leagueMapping[leagueKey];
         if (!compCode) return null;
@@ -376,17 +379,40 @@
             const response = await fetch(`${API_CONFIG.baseUrl}${compCode}/teams`, {
                 headers: { 'X-Auth-Token': API_CONFIG.apiKey }
             });
-            if (!response.ok) throw new Error("Errore chiamata API");
+            if (!response.ok) throw new Error("Errore chiamata API o limite superato");
             const data = await response.json();
-            // Mappa i dati dell'API nel formato usato dall'app
-            return data.teams.map(t => ({
-                id: t.tla ? t.tla.toLowerCase() : String(t.id),
-                name: t.shortName || t.name,
-                // Parametri default (verranno sovrascritti se agganci le statistiche del database)
-                winRate: 0.35, drawRate: 0.30, loseRate: 0.35, avgScored: 1.30, avgConceded: 1.30
-            }));
+            
+            // UNIONE LOGICA (MERGE): Agganciamo i dati reali del localDatabase alle squadre live dell'API
+            return data.teams.map(t => {
+                const apiId = t.tla ? t.tla.toLowerCase() : String(t.id);
+                const apiName = t.shortName || t.name;
+
+                // Cerca se esiste la squadra nel tuo database locale per prenderne le stats reali
+                const localMatch = localDatabase[leagueKey].find(localTeam => 
+                    localTeam.id === apiId || apiName.toLowerCase().includes(localTeam.name.toLowerCase())
+                );
+
+                if (localMatch) {
+                    return {
+                        id: apiId,
+                        name: apiName,
+                        winRate: localMatch.winRate,
+                        drawRate: localMatch.drawRate,
+                        loseRate: localMatch.loseRate,
+                        avgScored: localMatch.avgScored,
+                        avgConceded: localMatch.avgConceded
+                    };
+                } else {
+                    // Fallback di sicurezza se la squadra è nuova o non mappata
+                    return {
+                        id: apiId,
+                        name: apiName,
+                        winRate: 0.35, drawRate: 0.30, loseRate: 0.35, avgScored: 1.30, avgConceded: 1.30
+                    };
+                }
+            });
         } catch (error) {
-            console.error("Impossibile caricare i dati live. Uso database locale.", error);
+            console.error("Impossibile caricare i dati live. Uso database locale di riserva.", error);
             return null;
         }
     }
@@ -397,24 +423,47 @@
         const awaySelect = document.getElementById('awayTeam');
         const predictBtn = document.getElementById('predictBtn');
         
-        if (!leagueKey || (!localDatabase[leagueKey] && !API_CONFIG.useLiveAPI)) {
+        if (!leagueKey) {
             resetForm();
             return;
         }
 
-        let teams = [];
-        if (API_CONFIG.useLiveAPI && API_CONFIG.apiKey !== 'INSERISCI_QUI_LA_TUA_KEY') {
-            const apiTeams = await fetchAPIData(leagueKey);
-            teams = apiTeams ? apiTeams : localDatabase[leagueKey];
+        currentLoadedTeams = [];
+
+        if (API_CONFIG.useLiveAPI) {
+            const cacheKey = `cache_teams_${leagueKey}`;
+            const cacheTimeKey = `cache_time_${leagueKey}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            const cachedTime = localStorage.getItem(cacheTimeKey);
+            
+            // Durata della cache impostata a 2 ore per azzerare i blocchi API
+            const cacheDuration = 2 * 60 * 60 * 1000; 
+            const isCacheValid = cachedTime && (Date.now() - cachedTime < cacheDuration);
+
+            if (isCacheValid && cachedData) {
+                currentLoadedTeams = JSON.parse(cachedData);
+                console.log(`[SasyBet Cache] Dati di ${leagueKey} caricati dalla memoria locale del browser.`);
+            } else {
+                const apiTeams = await fetchAPIData(leagueKey);
+                if (apiTeams && apiTeams.length > 0) {
+                    currentLoadedTeams = apiTeams;
+                    localStorage.setItem(cacheKey, JSON.stringify(currentLoadedTeams));
+                    localStorage.setItem(cacheTimeKey, Date.now());
+                    console.log(`[SasyBet API] Dati di ${leagueKey} scaricati correttamente e salvati in Cache.`);
+                } else {
+                    currentLoadedTeams = localDatabase[leagueKey] || [];
+                    console.log(`[SasyBet Fallback] API bloccata o offline. Caricato database statico.`);
+                }
+            }
         } else {
-            teams = localDatabase[leagueKey];
+            currentLoadedTeams = localDatabase[leagueKey] || [];
         }
 
-        // Ordina alfabeticamente
-        teams.sort((a, b) => a.name.localeCompare(b.name));
+        // Ordina alfabeticamente per comodità dell'utente
+        currentLoadedTeams.sort((a, b) => a.name.localeCompare(b.name));
 
-        populateSelect(homeSelect, teams);
-        populateSelect(awaySelect, teams);
+        populateSelect(homeSelect, currentLoadedTeams);
+        populateSelect(awaySelect, currentLoadedTeams);
 
         homeSelect.disabled = false;
         awaySelect.disabled = false;
@@ -438,6 +487,7 @@
         document.getElementById('awayTeam').disabled = true;
         document.getElementById('predictBtn').disabled = true;
         document.getElementById('resultsContainer').style.display = 'none';
+        currentLoadedTeams = [];
     }
 
     // ==========================================
@@ -446,8 +496,6 @@
     function checkCoherence(outputs) {
         let { segno, doppiaChance, underOver, goalGoal, multigol, lineaAlt } = outputs;
 
-        // Regola 1: Se il segno è X fisso e c'è NO GOAL, l'unico risultato ammesso è lo 0-0.
-        // Di conseguenza, forza Under 2.5, Multigol coerente (1-2 o 0-2) e Linea Alt corretta.
         if (segno === "X" && goalGoal === "NO GOAL") {
             underOver = "UNDER 2.5";
             if (multigol === "2-4 GOL" || multigol === "3-5 GOL") {
@@ -456,8 +504,6 @@
             lineaAlt = "UNDER 3.5";
         }
 
-        // Regola 2: Se è presente un OVER 2.5 e il segno principale calcolato è X, 
-        // l'esito deve essere necessariamente un pareggio con gol (1-1, 2-2, ecc.). Forza GOAL.
         if (segno === "X" && underOver === "OVER 2.5") {
             goalGoal = "GOAL";
             if (multigol === "1-2 GOL") {
@@ -465,7 +511,6 @@
             }
         }
 
-        // Regola 3: Coerenza tra i mercati Under/Over generali e le fasce Multigol
         if (underOver === "OVER 2.5" && multigol === "1-2 GOL") {
             multigol = "2-4 GOL";
         }
@@ -477,7 +522,6 @@
     }
 
     function generatePrediction() {
-        const leagueKey = document.getElementById('league').value;
         const homeId = document.getElementById('homeTeam').value;
         const awayId = document.getElementById('awayTeam').value;
 
@@ -490,9 +534,9 @@
             return;
         }
 
-        const teams = localDatabase[leagueKey];
-        const hPerf = teams.find(t => t.id === homeId);
-        const aPerf = teams.find(t => t.id === awayId);
+        // Cerchiamo le squadre nell'array corrente caricato (che sia derivato da cache, API o localDB)
+        const hPerf = currentLoadedTeams.find(t => t.id === homeId);
+        const aPerf = currentLoadedTeams.find(t => t.id === awayId);
 
         if (hPerf && aPerf) {
             document.getElementById('lblHome').textContent = hPerf.name;
